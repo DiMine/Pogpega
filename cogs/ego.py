@@ -1,5 +1,5 @@
-import discord
-from discord.ext import commands, tasks
+import disnake as discord
+from disnake.ext import commands, tasks
 import sqlite3
 import dotenv
 import os
@@ -16,7 +16,7 @@ db.commit()
 cur.close()
 
 class Ego(commands.Cog):
-    def __init__(self, bot: discord.Bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.background_task.start()
     
@@ -72,14 +72,14 @@ class Ego(commands.Cog):
         print('Waiting for ', wanted - current, 's to fetch stats')
         await asyncio.sleep(wanted - current)
     
-    @discord.slash_command(name="egotrack", description="Get notifications when you need to update your ego")
-    async def egotrack(self, ctx: discord.ApplicationContext):
+    @commands.slash_command(name="egotrack", description="Get notifications when you need to update your ego")
+    async def egotrack(self, ctx: discord.ApplicationCommandInteraction):
         # Check if the username is in the database
         c = db.cursor()
         username = c.execute('SELECT pxls_username FROM usernames WHERE discord_id = ?', (str(ctx.author.id),)).fetchone()
         if username is None:
             c.close()
-            await ctx.respond("You need to link your username first")
+            await ctx.response.send_message("You need to link your username first")
             return
         username = username[0]
         # Add the username to the egos table
@@ -87,15 +87,15 @@ class Ego(commands.Cog):
         db.commit()
         c.close()
         # Respond to the user
-        await ctx.respond("Ego tracking enabled")
+        await ctx.response.send_message("Ego tracking enabled")
     
-    @discord.slash_command(name="egotrack-disable", description="Disable ego tracking")
-    async def egotrack_disable(self, ctx: discord.ApplicationContext):
+    @commands.slash_command(name="egotrack-disable", description="Disable ego tracking")
+    async def egotrack_disable(self, ctx: discord.ApplicationCommandInteraction):
         # Check if the username is in the database
         c = db.cursor()
         username = c.execute('SELECT pxls_username FROM usernames WHERE discord_id = ?', (str(ctx.author.id),)).fetchone()
         if username is None:
-            await ctx.respond("You need to link your username first")
+            await ctx.response.send_message("You need to link your username first")
             return
         username = username[0]
         # Remove the username from the egos table
@@ -103,46 +103,48 @@ class Ego(commands.Cog):
         db.commit()
         c.close()
         # Respond to the user
-        await ctx.respond("Ego tracking disabled")
+        await ctx.response.send_message("Ego tracking disabled")
     
-    user = discord.SlashCommandGroup(name="user", description="Commands for managing your username")
+    @commands.slash_command()
+    async def user(self, ctx: discord.ApplicationCommandInteraction):
+        pass
 
-    @user.command(name="link", description="Link your Discord account to your Pxls username")
-    async def link(self, ctx: discord.ApplicationContext, username: str):
+    @user.sub_command(name="link", description="Link your Discord account to your Pxls username")
+    async def link(self, ctx: discord.ApplicationCommandInteraction, username: str):
         # Check if the username is already in the database
         c = db.cursor()
         if c.execute('SELECT * FROM usernames WHERE pxls_username = ?', (username,)).fetchone() is not None:
-            await ctx.respond("Username already linked")
+            await ctx.response.send_message("Username already linked")
             return
         # Add the username to the database
         c.execute('INSERT INTO usernames VALUES (?, ?)', (str(ctx.author.id), username))
         db.commit()
         c.close()
         # Respond to the user
-        await ctx.respond("Username linked successfully")
+        await ctx.response.send_message("Username linked successfully")
     
-    @user.command(name="unlink", description="Unlink your Discord account from your Pxls username")
-    async def unlink(self, ctx: discord.ApplicationContext):
+    @user.sub_command(name="unlink", description="Unlink your Discord account from your Pxls username")
+    async def unlink(self, ctx: discord.ApplicationCommandInteraction):
         # Remove the username from the database
         c = db.cursor()
         c.execute('DELETE FROM usernames WHERE discord_id = ?', (str(ctx.author.id),))
         db.commit()
         c.close()
         # Respond to the user
-        await ctx.respond("Username unlinked successfully")
+        await ctx.response.send_message("Username unlinked successfully")
     
-    @user.command(name="get", description="Get your linked username")
-    async def get(self, ctx: discord.ApplicationContext):
+    @user.sub_command(name="get", description="Get your linked username")
+    async def get(self, ctx: discord.ApplicationCommandInteraction):
         # Get the username from the database
         c = db.cursor()
         username = c.execute('SELECT pxls_username FROM usernames WHERE discord_id = ?', (str(ctx.author.id),)).fetchone()
         c.close()
         if username is None:
-            await ctx.respond("You haven't linked a username yet")
+            await ctx.response.send_message("You haven't linked a username yet")
             return
         # Respond to the user
-        await ctx.respond(f"Your linked username is {username[0]}")
+        await ctx.response.send_message(f"Your linked username is {username[0]}")
     
 
-def setup(bot: discord.Bot):
+def setup(bot: commands.Bot):
     bot.add_cog(Ego(bot))

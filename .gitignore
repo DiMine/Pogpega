@@ -1,5 +1,8 @@
 venv command.txt
-cogs/databases/db.db
+cogs/databases
+cogs/logs
+cogs/templates
+info
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
