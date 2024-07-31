@@ -23,32 +23,32 @@ class Admin(commands.Cog):
     #     if isinstance(error, commands.errors.CheckFailure):
     #         await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
 
-    @commands.slash_command(name='echo', description='(Bot Admin Only) Echo a message')
-    async def echo(self, ctx: discord.ApplicationCommandInteraction, message: str):
-        await ctx.response.send_message(message)
+    # @commands.slash_command(name='admin_echo', description='(Bot Admin Only) Echo a message')
+    # async def echo(self, ctx: discord.ApplicationCommandInteraction, message: str):
+    #     await ctx.response.send_message(message)
 
-    @commands.slash_command(name='edit', description='(Bot Admin Only) Edit any message sent by the bot')
-    async def edit(
-        self,
-        ctx: discord.ApplicationCommandInteraction, 
-        message_id: int = commands.Param(name='message_id', description='The message ID to edit'),
-        message: str = commands.Param(name='message', description='The new message')):
-        try:
-            message = await ctx.channel.fetch_message(message_id)
-            await message.edit(content=message)
-        except discord.NotFound:
-            await ctx.response.send_message('Message not found', ephemeral=True)
+    # @commands.slash_command(name='admin_edit', description='(Bot Admin Only) Edit any message sent by the bot')
+    # async def edit(
+    #     self,
+    #     ctx: discord.ApplicationCommandInteraction, 
+    #     message_id: int = commands.Param(name='message_id', description='The message ID to edit'),
+    #     message: str = commands.Param(name='message', description='The new message')):
+    #     try:
+    #         message = await ctx.channel.fetch_message(message_id)
+    #         await message.edit(content=message)
+    #     except discord.NotFound:
+    #         await ctx.response.send_message('Message not found', ephemeral=True)
 
-    @commands.slash_command(name='delete', description='(Bot Admin Only) Delete any message sent by the bot')
-    async def delete(
-        self,
-        ctx: discord.ApplicationCommandInteraction, 
-        message_id: int = commands.Param(name='message_id', description='The message ID to delete')):
-        try:
-            message = await ctx.channel.fetch_message(message_id)
-            await message.delete()
-        except discord.NotFound:
-            await ctx.response.send_message('Message not found', ephemeral=True)
+    # @commands.slash_command(name='admin_delete', description='(Bot Admin Only) Delete any message sent by the bot')
+    # async def delete(
+    #     self,
+    #     ctx: discord.ApplicationCommandInteraction, 
+    #     message_id: int = commands.Param(name='message_id', description='The message ID to delete')):
+    #     try:
+    #         message = await ctx.channel.fetch_message(message_id)
+    #         await message.delete()
+    #     except discord.NotFound:
+    #         await ctx.response.send_message('Message not found', ephemeral=True)
 
     @commands.slash_command(name='infodownload', description='(Bot Admin Only) Download the info page from pxls.space')
     async def infodownload(self, ctx: discord.ApplicationCommandInteraction):
@@ -66,3 +66,6 @@ class Admin(commands.Cog):
 
 def setup(bot: commands.Bot):
     bot.add_cog(Admin(bot))
+
+def teardown(bot: commands.Bot):
+    bot.remove_cog('Admin')

@@ -2,8 +2,8 @@ import disnake as discord
 from disnake.ext import commands
 import sqlite3
 
-db = sqlite3.connect('cogs/databases/db.db')
-cur = db.cursor()
+db_points = sqlite3.connect('cogs/databases/points.db')
+cur = db_points.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS log_key (discord_id, canvas, key)')
 cur.close()
 
@@ -24,7 +24,7 @@ class Points(commands.Cog):
     @logkey.command(name='get', description='Get your log key')
     @commands.option(name='canvas', type=int, description='The canvas to get the log key for', required=True, choices=CANVASES)
     async def get(self, ctx: discord.ApplicationCommandInteraction, canvas: str):
-        cur = db.cursor()
+        cur = db_points.cursor()
         key = cur.execute('SELECT key FROM log_key WHERE discord_id = ? AND canvas = ?', (ctx.author.id, canvas)).fetchone()
         cur.close()
         if key is None:
@@ -34,7 +34,7 @@ class Points(commands.Cog):
     
     @logkey.command(name='list', description='List which canvases you have log keys for')
     async def list(self, ctx: discord.ApplicationCommandInteraction):
-        cur = db.cursor()
+        cur = db_points.cursor()
         canvases = cur.execute('SELECT canvas FROM log_key WHERE discord_id = ?', (ctx.author.id,)).fetchall()
         cur.close()
         if len(canvases) == 0:
@@ -45,9 +45,9 @@ class Points(commands.Cog):
     @logkey.command(name='delete', description='Delete your log key')
     @commands.option(name='canvas', type=int, description='The canvas to delete the log key for', required=True, choices=CANVASES)
     async def delete(self, ctx: discord.ApplicationCommandInteraction, canvas: str):
-        cur = db.cursor()
+        cur = db_points.cursor()
         cur.execute('DELETE FROM log_key WHERE discord_id = ? AND canvas = ?', (ctx.author.id, canvas))
-        db.commit()
+        db_points.commit()
         cur.close()
         await ctx.response.send_message('Log key deleted', ephemeral=True)
 
@@ -61,13 +61,17 @@ class LogKeyModal(discord.ui.Modal):
     
     async def callback(self, interaction: discord.Interaction):
         self.key = self.children[0].value
-        cur = db.cursor()
+        cur = db_points.cursor()
         cur.execute('DELETE FROM log_key WHERE discord_id = ? AND canvas = ?', (interaction.user.id, self.canvas))
         cur.execute('INSERT INTO log_key VALUES (?, ?, ?)', (interaction.user.id, self.canvas, self.key))
-        db.commit()
+        db_points.commit()
         cur.close()
         await interaction.response.send_message('Added log key for canvas ' + str(self.canvas), ephemeral=True)
 
 
 def setup(bot: commands.Bot):
     bot.add_cog(Points(bot))
+
+def teardown(bot: commands.Bot):
+    db_points.close()
+    bot.remove_cog('Points')

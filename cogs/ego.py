@@ -54,6 +54,9 @@ class Ego(commands.Cog):
             c.execute('UPDATE egos SET ego = ? WHERE pxls_username = ?', (user_count, user[0]))
         db.commit()
         c.close()
+
+    def cog_unload(self):
+        self.background_task.cancel()
     
     @tasks.loop(seconds=900)
     async def background_task(self):
@@ -148,3 +151,7 @@ class Ego(commands.Cog):
 
 def setup(bot: commands.Bot):
     bot.add_cog(Ego(bot))
+
+def teardown(bot: commands.Bot):
+    db.close()
+    bot.remove_cog('Ego')

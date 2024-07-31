@@ -2,6 +2,9 @@ import disnake as discord
 from disnake.ext import commands
 import dotenv
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 dotenv.load_dotenv()
 
@@ -26,10 +29,15 @@ for cog in cogs_list:
 def check_admin(ctx: discord.ApplicationCommandInteraction):
     return ctx.author.id in ADMINS
 
+# @bot.event
+# async def on_slash_command_error(ctx, error):
+#     if isinstance(error, commands.errors.CheckFailure):
+#         await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
+
 @bot.event
-async def on_slash_command_error(ctx, error):
-    if isinstance(error, commands.errors.CheckFailure):
-        await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
+async def on_error(ctx, error):
+    print("---- Error ----")
+    logging.error(error)
 
 
 @bot.slash_command(name='refresh_cogs', description='(Bot Admin Only) Refresh all the cogs')
