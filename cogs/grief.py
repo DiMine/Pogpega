@@ -47,22 +47,19 @@ class Grief(commands.Cog):
 
     async def websock(self):
         print('Connecting to pxls.space websocket')
-        async with websockets.connect('wss://pxls.space/ws', extra_headers={"x-pxls-cfauth": pxls_auth}) as socket:
-            async for message in socket:
-                message = json.loads(message)
-                if message['type'] == 'pixel':
-                    for pixel in message['pixels']:
-                        # Add the pixel to the board
-                        color = self.colors[pixel['color']]
-                        self.board.putpixel((pixel['x'], pixel['y']), color)
-                        # Check for griefs
-                        await self.check_griefs(pixel, color)
-            if socket.closed:
-                print('Websocket closed')
-                asyncio.sleep(5)
-                # Reconnect
-                self.task.cancel()
-                self.task = asyncio.create_task(self.websock())
+        async for socket in websockets.connect('wss://pxls.space/ws', extra_headers={"x-pxls-cfauth": pxls_auth}):
+            try:
+                async for message in socket:
+                    message = json.loads(message)
+                    if message['type'] == 'pixel':
+                        for pixel in message['pixels']:
+                            # Add the pixel to the board
+                            color = self.colors[pixel['color']]
+                            self.board.putpixel((pixel['x'], pixel['y']), color)
+                            # Check for griefs
+                            await self.check_griefs(pixel, color)
+            except websockets.exceptions.ConnectionClosed:
+                continue
                             
 
     def cog_unload(self) -> None:
