@@ -16,6 +16,8 @@ import time
 # TODO Make a template progress cog, use that for the templates here
 # TODO Put a try except when sending messages
 # TODO Let sticker be replaced
+# TODO If there is only 1 pixel at normal alert level, send the image
+# TODO Make help command
 
 pxls_auth = os.environ['PXLS_AUTH']
 BOT_ADMINS = [int(admin) for admin in os.environ['BOT_ADMINS'].split(',')]
@@ -55,6 +57,12 @@ class Grief(commands.Cog):
                         self.board.putpixel((pixel['x'], pixel['y']), color)
                         # Check for griefs
                         await self.check_griefs(pixel, color)
+            if socket.closed:
+                print('Websocket closed')
+                asyncio.sleep(5)
+                # Reconnect
+                self.task.cancel()
+                self.task = asyncio.create_task(self.websock())
                             
 
     def cog_unload(self) -> None:
@@ -76,25 +84,19 @@ class Grief(commands.Cog):
         self.colors_to_index = {v: k for k, v in colors_dict.items()}
 
     async def send_grief_alert(self, pixel: dict, alert: int):
-        print('Sending grief alert')
         x = pixel['x']
         y = pixel['y']
         color = self.colors[pixel['color']]
         print(f'\nGrief detected at {x}, {y}')
         template = self.templates[alert]
         channel = await self.bot.fetch_channel(template[1])
-        print('got the channel')
         # Crop the board
         img = self.board.copy()
-        print('copied the board')
         img = crop_grief_image(img, x, y)
-        print('cropped the board')
         img = img.resize((img.width * 10, img.height * 10), Image.Resampling.BOX)
-        print('resized the board')
         b = BytesIO()
         img.save(b, 'PNG')
         b.seek(0)
-        print('cropped the grief image')
         # Get the palette indexes for the colors
         expected = template[0].getpixel((x - template[2], y - template[3]))
         col_expected = self.rgb_to_palette(expected)
@@ -103,15 +105,13 @@ class Grief(commands.Cog):
         except KeyError:
             num_expected = 255
         col_actual = self.rgb_to_palette(color)
-        print('got the palette indexes')
         # Make the embed
         embed = discord.Embed()
-        embed.title = f'Grief Detected at [({x}, {y})](https://pxls.space/#x={x}&y={y}&scale=50) <a:neuroDinkDonk:1266816771168403456>'
-        embed.description = f'Pixel should be {col_expected} ({num_expected}) but is {col_actual} ({pixel['color']})'
+        embed.title = f'Grief Detected at {x}, {y} <a:neuroDinkDonk:1266816771168403456>'
+        embed.description = f'Pixel should be {col_expected} ({num_expected}) but is {col_actual} ({pixel['color']}) ([Link](https://pxls.space/#x={x}&y={y}&scale=50))'
         embed.set_thumbnail(url='https://media.discordapp.net/stickers/1150735306857910293.png')
         embed.color = EMBED_COLOR
         embed.set_image(file=discord.File(b, 'grief.png'))
-        print('made the embed')
         # Send the embed
         try:
             await channel.send(embed=embed)
@@ -141,7 +141,7 @@ class Grief(commands.Cog):
         embed.title = f'Griefs Detected at {len(pixels)} locations'
         embed.color = EMBED_COLOR
         for alert in alerts:
-            embed.add_field(name=f'[{alert[0]}, {alert[1]}](https://pxls.space/#x={alert[0]}&y={alert[1]}&scale=50)', value=f'Pixel should be {alert[2]} ({alert[3]}) but is {alert[4]} ({alert[5]})', inline=False)
+            embed.add_field(name=f'{alert[0]}, {alert[1]}', value=f'Pixel should be {alert[2]} ({alert[3]}) but is {alert[4]} ({alert[5]}) ([Link](https://pxls.space/#x={alert[0]}&y={alert[1]}&scale=50))', inline=False)
         try:
             await channel.send(embed=embed)
         except discord.Forbidden:
@@ -162,6 +162,7 @@ class Grief(commands.Cog):
             # Send the alerts
             if len(pixels) > 0:
                 await self.send_grief_alerts(pixels, server)
+            self.alerts[server] = []
             
 
     @send_alerts.before_loop
@@ -181,6 +182,7 @@ class Grief(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get("https://pxls.space/boarddata", headers=headers) as response:
                 data = await response.content.read()
+                # TODO put this in a try except to prevent reshaping errors
                 arr = np.asarray(list(data), dtype=np.uint8).reshape(
                 self.info["height"], self.info["width"]
                 )
@@ -212,6 +214,16 @@ class Grief(commands.Cog):
             return
         self.board = await self.fetch_board()
         await ctx.response.send_message('Board refreshed')
+    
+    @commands.slash_command(name='refresh_grief', description='(Bot Admin Only) Refresh the pxls websocket')
+    async def refresh_grief(self, ctx: discord.ApplicationCommandInteraction):
+        # Check if the user has permission to use this command
+        if ctx.author.id not in BOT_ADMINS:
+            await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
+            return
+        self.task.cancel()
+        self.task = asyncio.create_task(self.websock())
+        await ctx.response.send_message('Websocket refreshed')
 
     @commands.slash_command(name='get_board', description='Get the current board')
     async def get_board(self, ctx: discord.ApplicationCommandInteraction):
@@ -263,6 +275,7 @@ class Grief(commands.Cog):
         if image.content_type != 'image/png':
             await ctx.response.send_message('The attachment must be a png image', ephemeral=True)
             return
+        # Check if the user has permission to use this command
         if not await self.check_role(ctx):
             return
         # Get the channel id from the database
@@ -276,13 +289,24 @@ class Grief(commands.Cog):
         # Save the image
         await image.save(f'cogs/templates/{ctx.guild.id}.png')
         image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
+        # Make sure the image is RGBA
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+            image.save(f'cogs/templates/{ctx.guild.id}.png')
+            image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
         # image = reduce(image, PALETTE)
         # img = Image.open(f'cogs/templates/{ctx.guild.id}.png')
         # Update the template
         self.templates[ctx.guild.id] = (image, channel_id, x, y, 'normal')
         c = db_grief.cursor()
+        # Check if the template already exists and get the alert level
+        template = c.execute('SELECT * FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchone()
+        if template is not None:
+            alert = template[5]
+        else:
+            alert = 'normal'
         c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
-        c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel_id, x, y, True, 'normal'))
+        c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel_id, x, y, True, alert))
         db_grief.commit()
         c.close()
         await ctx.response.send_message('Template set')
@@ -308,7 +332,7 @@ class Grief(commands.Cog):
         c = db_grief.cursor()
         c.execute('UPDATE grief SET enabled = ? WHERE server_id = ?', (True, ctx.guild.id))
         db_grief.commit()
-        template = c.execute('SELECT * FROM grief WHERE server_id = ?', (ctx.guild.id,))
+        template = c.execute('SELECT * FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchall()
         c.close()
         image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
         self.templates[ctx.guild.id] = (image, template[0][1], template[0][2], template[0][3], template[0][5])
@@ -346,7 +370,7 @@ class Grief(commands.Cog):
         embed = discord.Embed()
         embed.title = 'Alert Levels'
         embed.add_field(name='Normal', value='Grief alerts are sent in batches at 5 minute intervals', inline=False)
-        embed.add_field(name='High', value='Grief alerts are sent for each pixel after a few seconds', inline=False)
+        embed.add_field(name='High', value='Grief alerts are sent for each pixel after 5 seconds, to prevent undos from triggering the alert', inline=False)
         embed.add_field(name='Realtime', value='Grief alerts are sent as soon as a pixel is detected, including pixels that are undone', inline=False)
         embed.color = EMBED_COLOR
         await ctx.response.send_message(embed=embed)
@@ -379,7 +403,7 @@ class Grief(commands.Cog):
             return False
         
     async def check_undo(self, template: tuple, x: int, y: int, server: int):
-        await asyncio.sleep(5)
+        await asyncio.sleep(6)
         new_color = self.board.getpixel((x, y))
         if self.check_grief(template, x, y, new_color):
             try:
@@ -415,14 +439,14 @@ class Grief(commands.Cog):
         if role is not None:
             role = discord.utils.get(ctx.guild.roles, id=role[0])
             if role not in ctx.author.roles:
-                await ctx.response.send_message('You do not have permission to use this command', ephemeral=True)
+                await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
                 return False
         else:
             await ctx.response.send_message('Role not set', ephemeral=True)
             return False
         return True
     
-
+# TODO make this actually good
 def crop_grief_image(image: Image, x: int, y: int) -> Image:
     WIDTH = 15
     HEIGHT = 6

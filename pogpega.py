@@ -10,7 +10,7 @@ dotenv.load_dotenv()
 
 ADMINS = [int(admin) for admin in os.environ['BOT_ADMINS'].split(',')]
 
-bot = commands.InteractionBot(test_guilds=[int(server) for server in os.environ['DISCORD_TEST_SERVERS'].split(',')])
+bot = commands.InteractionBot()#test_guilds=[int(server) for server in os.environ['DISCORD_TEST_SERVERS'].split(',')])
 
 @bot.event
 async def on_ready():
@@ -21,6 +21,7 @@ cogs_list = [
     'ego',
     'announce',
     'grief',
+    'fun'
     # 'points'
 ]
 for cog in cogs_list:
@@ -34,10 +35,10 @@ def check_admin(ctx: discord.ApplicationCommandInteraction):
 #     if isinstance(error, commands.errors.CheckFailure):
 #         await ctx.response.send_message('<a:nuhuh:1262041901440303157> You do not have permission to use this command', ephemeral=True)
 
-@bot.event
-async def on_error(ctx, error):
-    print("---- Error ----")
-    logging.error(error)
+# @bot.event
+# async def on_error(ctx, error):
+#     print("---- Error ----")
+#     logging.error(error)
 
 
 @bot.slash_command(name='refresh_cogs', description='(Bot Admin Only) Refresh all the cogs')

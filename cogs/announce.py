@@ -37,10 +37,11 @@ class Announce(commands.Cog):
     @commands.slash_command(name='setrole', description='(Server Admin Only) Set the role of people that can edit the template announcement')
     async def setrole(self, ctx: discord.ApplicationCommandInteraction, role: discord.Role):
         # Check if the user has permission to use this command
-        if ctx.author.guild_permissions.administrator:
+        if ctx.author.guild_permissions.manage_guild:
             c = db.cursor()
             c.execute('DELETE FROM roles WHERE server_id = ?', (ctx.guild.id,))
             c.execute('INSERT INTO roles VALUES (?, ?)', (ctx.guild.id, role.id))
+            # c.execute('INSERT INTO roles VALUES (?, ?) ON CONFLICT(server_id) DO UPDATE SET role_id = ?', (ctx.guild.id, role.id, role.id))
             db.commit()
             c.close()
             await ctx.response.send_message('Role set')
@@ -50,7 +51,7 @@ class Announce(commands.Cog):
     @commands.slash_command(name='unsetrole', description='(Server Admin Only) Unset the role of people that can edit the template announcement')
     async def unsetrole(self, ctx: discord.ApplicationCommandInteraction):
         # Check if the user has permission to use this command
-        if ctx.author.guild_permissions.administrator:
+        if ctx.author.guild_permissions.manage_guild:
             c = db.cursor()
             c.execute('DELETE FROM roles WHERE server_id = ?', (ctx.guild.id,))
             db.commit()
@@ -121,9 +122,14 @@ class Announce(commands.Cog):
         if announcement not in [str(announcement[0]) for announcement in announcements]:
             await ctx.response.send_message('Announcement not found', ephemeral=True)
             return
+        # Select the channel from the database
+        c = db_announce.cursor()
+        the_announcement = c.execute('SELECT * FROM announce WHERE server_id = ? AND message_id = ?', (ctx.guild.id, int(announcement))).fetchall()
+        c.close()
         # Update the timestamps
         try:
-            sent_message = await ctx.fetch_message(announcement)
+            channel = await commands.Bot.fetch_channel(self.bot, the_announcement[0][1])
+            sent_message = await channel.fetch_message(the_announcement[0][2])
         except discord.NotFound:
             await ctx.response.send_message('Message not found', ephemeral=True)
             return

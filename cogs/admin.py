@@ -4,6 +4,7 @@ import dotenv
 import os
 import aiohttp
 import json
+import sqlite3
 
 dotenv.load_dotenv()
 
@@ -49,6 +50,15 @@ class Admin(commands.Cog):
     #         await message.delete()
     #     except discord.NotFound:
     #         await ctx.response.send_message('Message not found', ephemeral=True)
+
+    @commands.slash_command(name='alert_override', description='(Bot Admin Only) (be careful with this command) Manually override alert levels in the grief database')
+    async def manual_override(self, ctx: discord.ApplicationCommandInteraction, server_id: int, alert: str):
+        grief_db = sqlite3.connect('grief.db')
+        c = grief_db.cursor()
+        c.execute('UPDATE grief SET alert = ? WHERE server_id = ?', (alert, server_id))
+        grief_db.commit()
+        grief_db.close()
+        await ctx.response.send_message(f'Overriding {server_id} with alert {alert}')
 
     @commands.slash_command(name='infodownload', description='(Bot Admin Only) Download the info page from pxls.space')
     async def infodownload(self, ctx: discord.ApplicationCommandInteraction):
