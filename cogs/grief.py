@@ -304,8 +304,7 @@ class Grief(commands.Cog):
             image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
         # image = reduce(image, PALETTE)
         # img = Image.open(f'cogs/templates/{ctx.guild.id}.png')
-        # Update the template
-        self.templates[ctx.guild.id] = (image, channel_id, x, y, 'normal')
+        
         c = db_grief.cursor()
         # Check if the template already exists and get the alert level
         template = c.execute('SELECT * FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchone()
@@ -313,6 +312,8 @@ class Grief(commands.Cog):
             alert = template[5]
         else:
             alert = 'normal'
+        # Update the template
+        self.templates[ctx.guild.id] = (image, channel_id, x, y, alert)
         c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
         c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel_id, x, y, True, alert))
         db_grief.commit()
