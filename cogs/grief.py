@@ -180,9 +180,20 @@ class Grief(commands.Cog):
             async with session.get("https://pxls.space/boarddata", headers=headers) as response:
                 data = await response.content.read()
                 # TODO put this in a try except to prevent reshaping errors
-                arr = np.asarray(list(data), dtype=np.uint8).reshape(
-                self.info["height"], self.info["width"]
-                )
+                try:
+                    arr = np.asarray(list(data), dtype=np.uint8).reshape(
+                    self.info["height"], self.info["width"]
+                    )
+                except ValueError:
+                    print('Canvas dimensions not updated')
+                    async with session.get("https://pxls.space/info", headers=headers) as response:
+                        info = await response.json()
+                        with open('info/info.json', 'w') as f:
+                            f.write(json.dumps(info))
+                    self.refresh_palette()
+                    arr = np.asarray(list(data), dtype=np.uint8).reshape(
+                    self.info["height"], self.info["width"]
+                    )
                 arr = palettize_array(arr, self.palette)
                 return Image.fromarray(arr, mode='RGBA')
                 
