@@ -32,6 +32,7 @@ cur.close()
 
 db_grief = sqlite3.connect('cogs/databases/grief.db')
 cur = db_grief.cursor()
+# cur.execute('DROP TABLE IF EXISTS grief')
 cur.execute('CREATE TABLE IF NOT EXISTS grief (server_id, channel_id, x, y, enabled, alert)')
 db_grief.commit()
 cur.close()
@@ -206,12 +207,12 @@ class Grief(commands.Cog):
         c = db_grief.cursor()
         c.execute('SELECT * FROM grief WHERE enabled = ?', (True,))
         for row in c.fetchall():
-            img = Image.open(f'cogs/templates/{row[0]}.png')
+            img = Image.open(f'cogs/templates/{row[1]}.png')
             # img = reduce(img, PALETTE)
             # image = palettize_array(img, palette)
             # image = Image.fromarray(image)
             # image.save(f'cogs/templates/{row[0]}_but_worse.png')
-            self.templates[row[0]] = (img, row[1], row[2], row[3], row[5])
+            self.templates[row[1]] = (img, row[1], row[2], row[3], row[5])
         c.close()
 
     @commands.slash_command(name='refresh_board', description='(Bot Admin Only) Refresh the board')
@@ -245,40 +246,41 @@ class Grief(commands.Cog):
     async def grief(self, ctx: discord.ApplicationCommandInteraction):
         pass
 
-    @grief.sub_command(name='setchannel', description='Set the grief alert channel')
-    async def setchannel(self, ctx: discord.ApplicationCommandInteraction, channel: discord.TextChannel):
-        # Check if the user has permission to use this command
-        if not await self.check_role(ctx):
-            return
-        # Set the channel
-        c = db_grief.cursor()
-        c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
-        c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel.id, -1, -1, False, 'normal'))
-        db_grief.commit()
-        c.close()
-        await ctx.response.send_message('Channel set')
+    # @grief.sub_command(name='setchannel', description='Set the grief alert channel')
+    # async def setchannel(self, ctx: discord.ApplicationCommandInteraction, channel: discord.TextChannel):
+    #     # Check if the user has permission to use this command
+    #     if not await self.check_role(ctx):
+    #         return
+    #     # Set the channel
+    #     c = db_grief.cursor()
+    #     c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
+    #     c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel.id, -1, -1, False, 'normal'))
+    #     db_grief.commit()
+    #     c.close()
+    #     await ctx.response.send_message('Channel set')
 
-    @grief.sub_command(name='unsetchannel', description='Unset the grief alert channel')
-    async def unsetchannel(self, ctx: discord.ApplicationCommandInteraction):
-        if not await self.check_role(ctx):
-            return
-        # Unset the channel
-        c = db_grief.cursor()
-        c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
-        db_grief.commit()
-        c.close()
-        try:
-            os.remove(f'cogs/templates/{ctx.guild.id}.png')
-        except FileNotFoundError:
-            pass
-        await ctx.response.send_message('Channel unset')
+    # @grief.sub_command(name='unsetchannel', description='Unset the grief alert channel')
+    # async def unsetchannel(self, ctx: discord.ApplicationCommandInteraction):
+    #     if not await self.check_role(ctx):
+    #         return
+    #     # Unset the channel
+    #     c = db_grief.cursor()
+    #     c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
+    #     db_grief.commit()
+    #     c.close()
+    #     try:
+    #         os.remove(f'cogs/templates/{ctx.guild.id}.png')
+    #     except FileNotFoundError:
+    #         pass
+    #     await ctx.response.send_message('Channel unset')
 
     @grief.sub_command(name='settemplate', description='Add/update a template to the grief alert')
     async def settemplate(self, 
             ctx: discord.ApplicationCommandInteraction, 
             x: int = commands.Param(name='x', description='The x coordinate of the template'),
             y: int = commands.Param(name='y', description='The y coordinate of the template'),
-            image: discord.Attachment = commands.Param(name='image', description='The image of the template')):
+            image: discord.Attachment = commands.Param(name='image', description='The image of the template'),
+            channel: discord.TextChannel = commands.Param(name='channel', description='The channel to send the alerts to', default=None)):
         # Check if the attachment is a png image
         if image.content_type != 'image/png':
             await ctx.response.send_message('The attachment must be a png image', ephemeral=True)
@@ -287,21 +289,25 @@ class Grief(commands.Cog):
         if not await self.check_role(ctx):
             return
         # Get the channel id from the database
-        c = db_grief.cursor()
-        channel_id = c.execute('SELECT channel_id FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchone()
-        c.close()
-        if channel_id is None:
-            await ctx.response.send_message('Channel not set', ephemeral=True)
-            return
-        channel_id = channel_id[0]
+        # c = db_grief.cursor()
+        # channel_id = c.execute('SELECT channel_id FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchone()
+        # c.close()
+        # if channel_id is None:
+        #     await ctx.response.send_message('Channel not set', ephemeral=True)
+        #     return
+        # channel_id = channel_id[0]
+        if channel is not None:
+            channel_id = channel.id
+        else:
+            channel_id = ctx.channel.id
         # Save the image
-        await image.save(f'cogs/templates/{ctx.guild.id}.png')
-        image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
+        await image.save(f'cogs/templates/{channel_id}.png')
+        image = Image.open(f'cogs/templates/{channel_id}.png')
         # Make sure the image is RGBA
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
-            image.save(f'cogs/templates/{ctx.guild.id}.png')
-            image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
+            image.save(f'cogs/templates/{channel_id}.png')
+            image = Image.open(f'cogs/templates/{channel_id}.png')
         # image = reduce(image, PALETTE)
         # img = Image.open(f'cogs/templates/{ctx.guild.id}.png')
         
@@ -313,63 +319,85 @@ class Grief(commands.Cog):
         else:
             alert = 'normal'
         # Update the template
-        self.templates[ctx.guild.id] = (image, channel_id, x, y, alert)
-        c.execute('DELETE FROM grief WHERE server_id = ?', (ctx.guild.id,))
+        self.templates[channel_id] = (image, channel_id, x, y, alert)
+        c.execute('DELETE FROM grief WHERE channel_id = ?', (channel_id,))
         c.execute('INSERT INTO grief VALUES (?, ?, ?, ?, ?, ?)', (ctx.guild.id, channel_id, x, y, True, alert))
         db_grief.commit()
         c.close()
         await ctx.response.send_message('Template set')
 
     @grief.sub_command(name='deletetemplate', description='Delete a template from the grief alert')
-    async def deletetemplate(self, ctx: discord.ApplicationCommandInteraction):
+    async def deletetemplate(self, ctx: discord.ApplicationCommandInteraction,
+                             channel: discord.TextChannel = commands.Param(name='channel', description='The channel to delete the template from', default=None)):
         if not await self.check_role(ctx):
             return
-        self.templates.pop(ctx.guild.id, None)
+        if channel is not None:
+            channel_id = channel.id
+        else:
+            channel_id = ctx.channel.id
+        self.templates.pop(channel_id, None)
         # Delete the template
         try:
-            os.remove(f'cogs/templates/{ctx.guild.id}.png')
+            os.remove(f'cogs/templates/{channel_id}.png')
         except FileNotFoundError:
             await ctx.response.send_message('Template not found', ephemeral=True)
             return
         await ctx.response.send_message('Template deleted')
 
     @grief.sub_command(name='enable', description='Enable the grief alert')
-    async def enable(self, ctx: discord.ApplicationCommandInteraction):
+    async def enable(self, 
+                     ctx: discord.ApplicationCommandInteraction,
+                     channel: discord.TextChannel = commands.Param(name='channel', description='The channel to enable the grief alert in', default=None)):
         if not await self.check_role(ctx):
             return
+        if channel is not None:
+            channel_id = channel.id
+        else:
+            channel_id = ctx.channel.id
         # Enable the grief alert
         c = db_grief.cursor()
-        c.execute('UPDATE grief SET enabled = ? WHERE server_id = ?', (True, ctx.guild.id))
+        c.execute('UPDATE grief SET enabled = ? WHERE channel_id = ?', (True, channel_id))
         db_grief.commit()
-        template = c.execute('SELECT * FROM grief WHERE server_id = ?', (ctx.guild.id,)).fetchall()
+        template = c.execute('SELECT * FROM grief WHERE channel_id = ?', (channel_id,)).fetchall()
         c.close()
-        image = Image.open(f'cogs/templates/{ctx.guild.id}.png')
-        self.templates[ctx.guild.id] = (image, template[0][1], template[0][2], template[0][3], template[0][5])
+        image = Image.open(f'cogs/templates/{channel_id}.png')
+        self.templates[channel_id] = (image, template[0][1], template[0][2], template[0][3], template[0][5])
         await ctx.response.send_message('Grief alert enabled')
 
     @grief.sub_command(name='disable', description='Disable the grief alert')
-    async def disable(self, ctx: discord.ApplicationCommandInteraction):
+    async def disable(self, 
+                      ctx: discord.ApplicationCommandInteraction,
+                      channel: discord.TextChannel = commands.Param(name='channel', description='The channel to disable the grief alert in', default=None)):
         if not await self.check_role(ctx):
             return
+        if channel is not None:
+            channel_id = channel.id
+        else:
+            channel_id = ctx.channel.id
         # Disable the grief alert
         c = db_grief.cursor()
-        c.execute('UPDATE grief SET enabled = ? WHERE server_id = ?', (False, ctx.guild.id))
+        c.execute('UPDATE grief SET enabled = ? WHERE channel_id = ?', (False, channel_id))
         db_grief.commit()
         c.close()
-        self.templates.pop(ctx.guild.id, None)
+        self.templates.pop(channel_id, None)
         await ctx.response.send_message('Grief alert disabled')
 
     @grief.sub_command(name='alert', description='Set the alert level')
     async def alert(self, 
             ctx: discord.ApplicationCommandInteraction, 
-            alert: str = commands.Param(name='alert', description='The alert level', choices=['normal', 'high', 'realtime'])):
+            alert: str = commands.Param(name='alert', description='The alert level', choices=['normal', 'high', 'realtime']),
+            channel: discord.TextChannel = commands.Param(name='channel', description='The channel to set the alert level for', default=None)):
         if not await self.check_role(ctx):
             return
+        if channel is not None:
+            channel_id = channel.id
+        else:
+            channel_id = ctx.channel.id
         # Set the alert level
-        template = self.templates[ctx.guild.id]
-        self.templates[ctx.guild.id] = (template[0], template[1], template[2], template[3], alert)
+        template = self.templates[channel_id]
+        self.templates[channel_id] = (template[0], template[1], template[2], template[3], alert)
         c = db_grief.cursor()
-        c.execute('UPDATE grief SET alert = ? WHERE server_id = ?', (alert, ctx.guild.id))
+        c.execute('UPDATE grief SET alert = ? WHERE channel_id = ?', (alert, channel_id))
         db_grief.commit()
         c.close()
         await ctx.response.send_message('Alert level set to ' + alert)
