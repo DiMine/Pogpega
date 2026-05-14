@@ -12,6 +12,7 @@ import numpy as np
 from io import BytesIO
 import time
 import traceback
+import functools
 
 import boto3
 
@@ -517,12 +518,12 @@ class Grief(commands.Cog):
                             task.pogpega_pixel_timestamp = time.monotonic()
                         else:
                             # create new task to wait for undo timeout
-                            def discard_task(_task):
+                            def discard_task(channel, pos, task):
                                 del self.undo_tasks[channel][pos]
                             was_virgin = self.virginmap.getpixel((x, y)) == self.colors[255]
                             task = asyncio.create_task(self.check_undo(template, x, y, prev_color, was_virgin, channel))
                             task.pogpega_pixel_timestamp = time.monotonic()
-                            task.add_done_callback(discard_task)
+                            task.add_done_callback(functools.partial(discard_task, channel, pos))
                             self.undo_tasks.setdefault(channel, {})[pos] = task;
             elif self.check_grief(template, x, y, color, prev_color):
                 griefed = True
